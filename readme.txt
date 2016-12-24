@@ -1,39 +1,41 @@
-PIC32MX150F128B/PIC32MX250F128B�p�e�L�X�g�G�f�B�^�@by K.Tanaka
-PS/2�L�[�{�[�h�ASD�J�[�h�Ή�
+PIC32MX150F128B/PIC32MX250F128B用テキストエディタ　by K.Tanaka
+Gombeによりちらつき防止コードを挿入
 
-�ڍׂ͂�����
+PS/2キーボード、SDカード対応
+
+詳細はこちら
 http://www.ze.em-net.ne.jp/~kenken/texteditor/index.html
 
-�������t�@�C����
+＜同梱ファイル＞
 texteditor.c
-�@�e�L�X�g�G�f�B�^�[�{��
+　テキストエディター本体
 
 keyinput.c
-�@�L�[���͂�J�[�\���_�Ŋ֘A���i
+　キー入力やカーソル点滅関連部品
 
 keyinput.h
-�@keyinput.c�p�w�b�_�[�t�@�C��
+　keyinput.c用ヘッダーファイル
 
 ps2keyboard.X.a
-�@PS/2�L�[�{�[�h���g�p���邽�߂̃��C�u����
+　PS/2キーボードを使用するためのライブラリ
 
 ps2keyboard.h
-�@ps2keyboard.X.a�p�w�b�_�[�t�@�C��
+　ps2keyboard.X.a用ヘッダーファイル
 
 lib_colortext32.a
-�@�J���[�r�f�I�o�͂��邽�߂̃��C�u����
+　カラービデオ出力するためのライブラリ
 
 colortext32.h
-�@lib_colortext32.a�p�w�b�_�[�t�@�C��
+　lib_colortext32.a用ヘッダーファイル
 
 libsdfsio.a
-�@SD�J�[�h�ɃA�N�Z�X���邽�߂̃��C�u����
+　SDカードにアクセスするためのライブラリ
 
 SDFSIO.h
-�@libsdfsio.a�p�w�b�_�[�t�@�C��
+　libsdfsio.a用ヘッダーファイル
 
 App_32MX250F128B.ld
-�@SD�J�[�h�u�[�g���[�_AP�p�����J�[�X�N���v�g
+　SDカードブートローダAP用リンカースクリプト
 
 textedit.hex
-�@SD�J�[�h�u�[�g���[�_�p�Ƀr���h�ς݂�HEX�t�@�C��
+　SDカードブートローダ用にビルド済みのHEXファイル
