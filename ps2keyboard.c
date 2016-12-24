@@ -289,7 +289,8 @@ void ps2send()
 		}
 		else if(sendcount==11){
 			ps2sending=0;
-		}
+            start_composite();
+    	}
 		return;
 	}
 // 以下CLK立下り時処理
@@ -383,6 +384,7 @@ void ps2statusprogress(){
 			//送信データ（data,parity,stop bit）
 			senddata=0x200+((parity&1)<<8)+(ps2sendcomdata & 0xff);
 			receivecount=0;//もし受信途中なら強制終了
+            stop_composite();
 			ps2sending=1;//送信中フラグ
 			sendcount=0;//送信カウンタ
 			ps2status=PS2STATUS_WAIT100us;
@@ -440,6 +442,7 @@ void ps2statusprogress(){
 					//再送要求だった場合、最初から再送する
 					ps2status=PS2STATUS_SENDSTART;
 					ps2statuscount=PS2TIME_PRESEND;
+                    while(!T2CONbits.ON||LineCount != V_SYNC+V_PREEQ+V_LINE);
 					ps2sending=1;
 					return;
 				}

@@ -16,16 +16,6 @@
 #define C_BST3	6
 #define C_BST4	9
 
-// パルス幅定数
-#define V_NTSC		262					// 262本/画面
-#define V_SYNC		10					// 垂直同期本数
-#define V_PREEQ		26					// ブランキング区間上側（V_SYNC＋V_PREEQは偶数とすること）
-#define V_LINE		(WIDTH_Y*8)			// 画像描画区間
-#define H_NTSC		3632				// 約63.5μsec
-#define H_SYNC		269					// 水平同期幅、約4.7μsec
-#define H_CBST		304					// カラーバースト開始位置（水平同期立下りから）
-#define H_BACK		339					// 左スペース（水平同期立ち上がりから）
-
 // グローバル変数定義
 unsigned int ClTable[256];	//カラーパレット信号テーブル、各色32bitを下位から8bitずつ順に出力
 unsigned char TVRAM[WIDTH_X*WIDTH_Y*2+1] __attribute__ ((aligned (4)));
@@ -442,6 +432,9 @@ void start_composite(void)
 void stop_composite(void)
 {
 	T2CONCLR = 0x8000;			// タイマ2停止
+    mCNBIntEnable(1); // CNB割り込み有効化
+    mTRISPS2CLKIN();//CLKを入力に設定
+
 }
 
 // カラーコンポジット出力初期化
