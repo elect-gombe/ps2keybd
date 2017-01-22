@@ -1486,7 +1486,6 @@ int main(void){
 
 	ps2mode(); //RA1オン（PS/2有効化マクロ）
 	init_composite(); // ビデオメモリクリア、割り込み初期化、カラービデオ出力開始
-    stop_composite();
 	setcursor(0,0,COLOR_NORMALTEXT);
 
 	printstr("Init PS/2...");
@@ -1495,11 +1494,25 @@ int main(void){
 		setcursorcolor(COLOR_ERRORTEXT);
 		printstr("\nPS/2 Error\n");
 		printstr("Power Off and Check Keyboard\n");
-		while(1) asm("wait"); //無限ループ
+//		while(1) asm("wait"); //無限ループ
 	}
+    
 	printstr("OK\n");
+        IEC1bits.CNBIE=0;
+//    while(1){
+//        int i;
+//        clearscreen();
+//        setcursor(0,0,COLOR_NORMALTEXT);
+//        for(i=0;i<256;i++){
+//            if(ps2keystatus[i]){
+//                printnum(i);
+//                printstr("\n");
+//            }
+//        }
+//        while(!drawing);
+//        while(drawing);
+//    }
 
-    start_composite();
 	//SDカードファイルシステム初期化
 	while(1){
 		setcursorcolor(COLOR_NORMALTEXT);

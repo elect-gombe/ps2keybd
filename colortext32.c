@@ -4,7 +4,6 @@
 // クロック周波数3.579545MHz×16倍
 //　カラー信号はカラーサブキャリアの90度ごとに出力、270度で1ドット（4分の3周期）
 
-#include "ps2keyboard.h"
 #include "colortext32.h"
 #include <plib.h>
 
@@ -15,6 +14,16 @@
 #define C_BST2	3
 #define C_BST3	6
 #define C_BST4	9
+
+// パルス幅定数
+#define V_NTSC		262					// 262本/画面
+#define V_SYNC		10					// 垂直同期本数
+#define V_PREEQ		26					// ブランキング区間上側（V_SYNC＋V_PREEQは偶数とすること）
+#define V_LINE		(WIDTH_Y*8)			// 画像描画区間
+#define H_NTSC		3632				// 約63.5μsec
+#define H_SYNC		269					// 水平同期幅、約4.7μsec
+#define H_CBST		304					// カラーバースト開始位置（水平同期立下りから）
+#define H_BACK		339					// 左スペース（水平同期立ち上がりから）
 
 // グローバル変数定義
 unsigned int ClTable[256];	//カラーパレット信号テーブル、各色32bitを下位から8bitずつ順に出力
@@ -66,13 +75,6 @@ asm volatile("label1_2:");
 	else{
 		OC1R = H_SYNC-3;		// 同期パルス幅4.7usec
 		OC1CON = 0x8001;		// タイマ2選択ワンショット
-        if(LineCount == V_SYNC+V_PREEQ-1){
-            mCNBClearIntFlag();
-            // CNB割り込み無効化
-            IEC1CLR = _IEC1_CNBIE_MASK;
-            mTRISPS2CLKOUT();//CLKを出力に設定
-            mPS2CLKCLR();
-        }
 		if(LineCount>=V_SYNC+V_PREEQ && LineCount<V_SYNC+V_PREEQ+V_LINE){
 			// 画像描画区間
 			OC2R = H_SYNC+H_BACK-3-38;// 画像信号開始のタイミング
@@ -81,16 +83,13 @@ asm volatile("label1_2:");
 				VRAMp=TVRAM;
 				drawing=-1;
 			}
-            
 			else{
-                if((LineCount-(V_SYNC+V_PREEQ))%8==0) VRAMp+=WIDTH_X;// 1キャラクタ縦8ドット
+				if((LineCount-(V_SYNC+V_PREEQ))%8==0) VRAMp+=WIDTH_X;// 1キャラクタ縦8ドット
 			}
 		}
 		else if(LineCount==V_SYNC+V_PREEQ+V_LINE){ // 1画面最後の描画終了
 			drawing=0;
 			drawcount++;
-            mCNBIntEnable(1); // CNB割り込み有効化
-            mTRISPS2CLKIN();//CLKを入力に設定
 		}
 	}
 	LineCount++;
@@ -139,7 +138,6 @@ asm volatile("label4_2:");
 *********************/
 void __ISR(6, ipl5) OC1Handler(void)
 {
-    
 	asm volatile("#":::"v0");
 	asm volatile("#":::"v1");
 	asm volatile("#":::"a0");
@@ -432,9 +430,6 @@ void start_composite(void)
 void stop_composite(void)
 {
 	T2CONCLR = 0x8000;			// タイマ2停止
-    mCNBIntEnable(1); // CNB割り込み有効化
-    mTRISPS2CLKIN();//CLKを入力に設定
-
 }
 
 // カラーコンポジット出力初期化

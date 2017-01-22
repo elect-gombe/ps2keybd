@@ -63,7 +63,7 @@
 #define PS2TIME_ACKTIMEOUT 50 //ACK応答タイムアウト時間、5000us
 #define PS2TIME_BATTIMEOUT 5000 //BAT応答タイムアウト時間、500ms
 #define PS2TIME_INIT 5000    //電源オン後の起動時間、500ms
-#define PS2TIME_RECEIVETIMEOUT 20 //データ受信タイムアウト時間、2000us
+#define PS2TIME_RECEIVETIMEOUT 50 //データ受信タイムアウト時間、5000us
 
 // PS/2コマンド
 #define PS2CMD_RESET 0xff //キーボードリセット
@@ -74,6 +74,7 @@
 #define PS2CMD_ECHO 0xee //エコー
 #define PS2CMD_OVERRUN 0x00 //バッファオーバーラン
 #define PS2CMD_BREAK 0xf0 //ブレイクプリフィックス
+#define PS2CMD_REPETE_RATE 0xf3
 
 
 #define CHK_SHIFT 0x01
@@ -236,6 +237,7 @@
 extern volatile unsigned char ps2keystatus[256]; // 仮想コードに相当するキーの状態（Onの時1）
 extern volatile unsigned short vkey; //仮想キーコード
 
+extern volatile unsigned char ps2status;
 int ps2init(); // PS/2ライブラリ関連初期化。正常終了0、エラーで-1を返す
 unsigned char shiftkeys(); // SHIFT関連キーの押下状態を返す
 unsigned char ps2readkey();

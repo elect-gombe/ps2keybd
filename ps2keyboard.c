@@ -8,8 +8,81 @@
 //
 
 #include "ps2keyboard.h"
-#include "colortext32.h"
 #include <plib.h>
+
+// PIC32MX1xx/2xxで利用する場合は、以下の行をコメントアウトする
+//#define PIC32MX370F
+
+#ifdef PIC32MX370F
+#define PS2DATBIT  0x40 // RD6
+#define PS2CLKBIT  0x80 // RD7
+#define PORTPS2DAT PORTDbits.RD6
+#define PORTPS2CLK PORTDbits.RD7
+#define mPS2DATSET() (LATDSET=PS2DATBIT)
+#define mPS2DATCLR() (LATDCLR=PS2DATBIT)
+#define mPS2CLKSET()  (LATDSET=PS2CLKBIT)
+#define mPS2CLKCLR()  (LATDCLR=PS2CLKBIT)
+#define mTRISPS2DATIN()  (TRISDSET=PS2DATBIT)
+#define mTRISPS2DATOUT() (TRISDCLR=PS2DATBIT)
+#define mTRISPS2CLKIN()  (TRISDSET=PS2CLKBIT)
+#define mTRISPS2CLKOUT() (TRISDCLR=PS2CLKBIT)
+#define TIMER5_100us 597
+
+#else
+#define PS2DATBIT  0x100 // RB8
+#define PS2CLKBIT  0x200 // RB9
+#define PORTPS2DAT PORTBbits.RB8
+#define PORTPS2CLK PORTBbits.RB9
+#define mPS2DATSET() (LATBSET=PS2DATBIT)
+#define mPS2DATCLR() (LATBCLR=PS2DATBIT)
+#define mPS2CLKSET()  (LATBSET=PS2CLKBIT)
+#define mPS2CLKCLR()  (LATBCLR=PS2CLKBIT)
+#define mTRISPS2DATIN()  (TRISBSET=PS2DATBIT)
+#define mTRISPS2DATOUT() (TRISBCLR=PS2DATBIT)
+#define mTRISPS2CLKIN()  (TRISBSET=PS2CLKBIT)
+#define mTRISPS2CLKOUT() (TRISBCLR=PS2CLKBIT)
+#define TIMER5_100us 358
+
+#endif
+
+#define SCANCODEBUFSIZE 16 //スキャンコードバッファのサイズ
+#define KEYCODEBUFSIZE 16 //キーコードバッファのサイズ
+
+// 送受信エラーコード
+#define PS2ERROR_PARITY 1
+#define PS2ERROR_STARTBIT 2
+#define PS2ERROR_STOPBIT 3
+#define PS2ERROR_BUFFERFUL 4
+#define PS2ERROR_TIMEOUT 5
+#define PS2ERROR_TOOMANYRESENDREQ 6
+#define PS2ERROR_NOACK 7
+#define PS2ERROR_NOBAT 8
+
+//コマンド送信状況を表すps2statusの値
+#define PS2STATUS_SENDSTART 1
+#define PS2STATUS_WAIT100us 2
+#define PS2STATUS_SENDING 3
+#define PS2STATUS_WAITACK 4
+#define PS2STATUS_WAITBAT 5
+#define PS2STATUS_INIT 6
+
+#define PS2TIME_CLKDOWN 2     //コマンド送信時のCLKをLにする時間、200us(PS2STATUS_WAIT100usの時間)
+#define PS2TIME_PRESEND 2     //コマンド送信前の待ち時間、200us
+#define PS2TIME_CMDTIMEOUT 110 //コマンド送信タイムアウト時間、11ms
+#define PS2TIME_ACKTIMEOUT 50 //ACK応答タイムアウト時間、5000us
+#define PS2TIME_BATTIMEOUT 5000 //BAT応答タイムアウト時間、500ms
+#define PS2TIME_INIT 5000    //電源オン後の起動時間、500ms
+#define PS2TIME_RECEIVETIMEOUT 20 //データ受信タイムアウト時間、2000us
+
+// PS/2コマンド
+#define PS2CMD_RESET 0xff //キーボードリセット
+#define PS2CMD_SETLED 0xed //ロックLED設定
+#define PS2CMD_RESEND 0xfe //再送要求
+#define PS2CMD_ACK 0xfa //ACK応答
+#define PS2CMD_BAT 0xaa //テスト正常終了
+#define PS2CMD_ECHO 0xee //エコー
+#define PS2CMD_OVERRUN 0x00 //バッファオーバーラン
+#define PS2CMD_BREAK 0xf0 //ブレイクプリフィックス
 
 // グローバル変数定義
 unsigned int ps2sendcomdata;//送信コマンドバッファ（最大4バイト、下位から順に）
@@ -212,14 +285,14 @@ const unsigned char vk2asc2_en[]={
 	0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00
 };
 
-void ps2receive()
+void ps2receive(unsigned int data)
 {
 	unsigned char d;
 	unsigned char c;
 
 	if(ps2receiveError) return; // エラー発生中は残りビット無視
-	if(PORTPS2CLK) return; //CLK立ち上がりは無視
-	d=PORTPS2DAT;
+	if(data&(0x1<<1)) return; //CLK立ち上がりは無視
+	d=data&(0x1<<0);
 	if(receivecount==0){
 		//スタートビット
 		if(d){
@@ -289,8 +362,7 @@ void ps2send()
 		}
 		else if(sendcount==11){
 			ps2sending=0;
-            start_composite();
-    	}
+		}
 		return;
 	}
 // 以下CLK立下り時処理
@@ -335,17 +407,49 @@ void __ISR(34, ipl6) CNHandler(void)
 	unsigned int volatile portb; //dummy
 
 	cnstatb=CNSTATB;
-	if(cnstatb){
+	if(IFS1bits.CNBIF){
 		portb=PORTB; //dummy read
 		if(cnstatb & PS2CLKBIT){
 			// CLKが変化した時
 			if(ps2sending) ps2send(); //コマンド送信中のCLK変化
-			else ps2receive(); //受信中のCLK変化
+			else ps2receive(PORTB>>8); //受信中のCLK変化
 		}
-		mCNBClearIntFlag(); // CNB割り込みフラグクリア
+		mCNBClearIntFlag(); // CNB割り込みフラグクリア 
+        //IFS1
 	}
 }
 #endif
+
+volatile unsigned char keyboard_rcvdata[16];
+volatile unsigned int dma_readpt;
+
+int getdata(unsigned int *data){
+    if(dma_readpt != DCH3DPTR){
+//        printnum(dma_readpt);
+//        printstr(":");
+//        printnum(keyboard_rcvdata[dma_readpt++]&0x3);
+        
+        ps2receive(keyboard_rcvdata[dma_readpt]);
+        dma_readpt++;
+        if(dma_readpt==16)dma_readpt=0;
+//        printstr("\n");
+        return 1;
+    }
+    return 0;
+//    DCH3CON DMACON DCH3INT  PORTB
+}
+
+void dmainit(int ch){
+    DmaChnOpen(ch, 0, DMA_OPEN_AUTO);
+
+    DmaChnSetEventControl(ch, DMA_EV_START_IRQ(_CHANGE_NOTICE_B_IRQ));
+
+    DmaChnSetTxfer(ch, 0xBF886121,keyboard_rcvdata,  1,sizeof (keyboard_rcvdata), 1);
+    
+    DmaChnEnable(ch);
+    
+    DMACONbits.ON = 1;
+}
 
 void ps2statusprogress(){
 	//コマンド送信状態で100マイクロ秒ごとに呼び出し
@@ -354,6 +458,7 @@ void ps2statusprogress(){
 	unsigned char c;
 	unsigned int volatile dummy;
 
+    
 	ps2statuscount--;
 	switch(ps2status){
 		case PS2STATUS_INIT:
@@ -384,7 +489,6 @@ void ps2statusprogress(){
 			//送信データ（data,parity,stop bit）
 			senddata=0x200+((parity&1)<<8)+(ps2sendcomdata & 0xff);
 			receivecount=0;//もし受信途中なら強制終了
-            stop_composite();
 			ps2sending=1;//送信中フラグ
 			sendcount=0;//送信カウンタ
 			ps2status=PS2STATUS_WAIT100us;
@@ -442,7 +546,6 @@ void ps2statusprogress(){
 					//再送要求だった場合、最初から再送する
 					ps2status=PS2STATUS_SENDSTART;
 					ps2statuscount=PS2TIME_PRESEND;
-                    while(!T2CONbits.ON||LineCount != V_SYNC+V_PREEQ+V_LINE);
 					ps2sending=1;
 					return;
 				}
@@ -666,6 +769,11 @@ void readscancode(){
 }
 void __ISR(20, ipl4) T5Handler(void)
 {
+    if(IEC1bits.CNBIE==0)
+        while(getdata(0));
+    else
+        dma_readpt = DCH3DPTR;
+
 	if(ps2status!=0) ps2statusprogress();
 	if(receivecount){
 		//データ受信中のタイムアウトチェック
@@ -682,9 +790,6 @@ void __ISR(20, ipl4) T5Handler(void)
 	//スキャンコードバッファから読み出し、キーコードに変換してキーコードバッファに格納
 	if(scancodebufp1!=scancodebufp2) readscancode();
 	mT5ClearIntFlag(); // T5割り込みフラグクリア
-    if(drawing){
-    }else{
-    }
 }
 int ps2init()
 {
@@ -716,7 +821,7 @@ int ps2init()
 	T5CON=0x0040; //Timer5 1:16 prescale
 	PR5=TIMER5_100us;//100us周期
 	TMR5=0;
-	mT5SetIntPriority(3); // 割り込みレベル4
+	mT5SetIntPriority(4); // 割り込みレベル4
 	mT5ClearIntFlag();
 	mT5IntEnable(1); // T5割り込み有効化
 	T5CONSET=0x8000; //Timer5 Start
@@ -725,7 +830,6 @@ int ps2init()
 	ps2status=PS2STATUS_INIT;
 	ps2statuscount=PS2TIME_INIT;
 	while(ps2status) ;
-
 	// CN割り込み有効化
 #ifdef PIC32MX370F
 	mCNSetIntPriority(6); // 割り込みレベル6
@@ -734,7 +838,7 @@ int ps2init()
 	CNENDSET=PS2CLKBIT; // CLKの変化でCN割り込み
 	CNCOND=0x8000; // PORTDに対するCN割り込みオン
 #else
-	mCNSetIntPriority(4); // 割り込みレベル6
+	mCNSetIntPriority(6); // 割り込みレベル6
 	mCNBClearIntFlag();
 	mCNBIntEnable(1); // CNB割り込み有効化
 	CNENBSET=PS2CLKBIT; // CLKの変化でCN割り込み
@@ -746,6 +850,7 @@ int ps2init()
 	ps2command(PS2CMD_SETLED+(ps2shiftkey_a & 0xff00),2); // キーボードのインジケータ設定
 	while(ps2status) ; //送信完了待ち
 	if(ps2sendError) return -1; //エラー発生
+    dmainit(DMA_CHANNEL3);
 	return 0;
 }
 unsigned char ps2readkey(){
