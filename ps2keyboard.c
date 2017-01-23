@@ -407,7 +407,7 @@ void __ISR(34, ipl6) CNHandler(void)
 	unsigned int volatile portb; //dummy
 
 	cnstatb=CNSTATB;
-	if(IFS1bits.CNBIF){
+	if(1){
 		portb=PORTB; //dummy read
 		if(cnstatb & PS2CLKBIT){
 			// CLKが変化した時
@@ -424,19 +424,13 @@ volatile unsigned char keyboard_rcvdata[16];
 volatile unsigned int dma_readpt;
 
 int getdata(unsigned int *data){
-    if(dma_readpt != DCH3DPTR){
-//        printnum(dma_readpt);
-//        printstr(":");
-//        printnum(keyboard_rcvdata[dma_readpt++]&0x3);
-        
+    while(dma_readpt != DCH3DPTR){
         ps2receive(keyboard_rcvdata[dma_readpt]);
         dma_readpt++;
         if(dma_readpt==16)dma_readpt=0;
-//        printstr("\n");
         return 1;
     }
     return 0;
-//    DCH3CON DMACON DCH3INT  PORTB
 }
 
 void dmainit(int ch){
@@ -444,7 +438,7 @@ void dmainit(int ch){
 
     DmaChnSetEventControl(ch, DMA_EV_START_IRQ(_CHANGE_NOTICE_B_IRQ));
 
-    DmaChnSetTxfer(ch, 0xBF886121,keyboard_rcvdata,  1,sizeof (keyboard_rcvdata), 1);
+    DmaChnSetTxfer(ch, 0xBF886121,keyboard_rcvdata,  1,sizeof (keyboard_rcvdata), 1);/*PORTB + 1*/
     
     DmaChnEnable(ch);
     
@@ -770,7 +764,7 @@ void readscancode(){
 void __ISR(20, ipl4) T5Handler(void)
 {
     if(IEC1bits.CNBIE==0)
-        while(getdata(0));
+        getdata(0);
     else
         dma_readpt = DCH3DPTR;
 
@@ -791,6 +785,7 @@ void __ISR(20, ipl4) T5Handler(void)
 	if(scancodebufp1!=scancodebufp2) readscancode();
 	mT5ClearIntFlag(); // T5割り込みフラグクリア
 }
+
 int ps2init()
 {
 // PS/2キーボードシステム初期化
@@ -851,6 +846,8 @@ int ps2init()
 	while(ps2status) ; //送信完了待ち
 	if(ps2sendError) return -1; //エラー発生
     dmainit(DMA_CHANNEL3);
+    IEC1bits.CNBIE=0;
+
 	return 0;
 }
 unsigned char ps2readkey(){

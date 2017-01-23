@@ -1498,7 +1498,6 @@ int main(void){
 	}
     
 	printstr("OK\n");
-        IEC1bits.CNBIE=0;
 //    while(1){
 //        int i;
 //        clearscreen();
